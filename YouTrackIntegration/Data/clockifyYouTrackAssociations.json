@@ -1,0 +1,20 @@
+[
+  {
+    "clockifyId":"608ab876b2a2b737f32693d8",
+    "youTracks":[
+      {
+        "youTrackDomain":"domain",
+        "youTrackPermToken":"token",
+        "taskKey":"CAYTI"}
+    ]
+  },
+  {
+    "clockifyId":"608ab876b2a2b737f32693d8",
+    "youTracks":[
+      {
+        "youTrackDomain":"domain",
+        "youTrackPermToken":"token",
+        "taskKey":"CAYTI"}
+    ]
+  }
+]
