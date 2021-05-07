@@ -3,9 +3,10 @@
     "clockifyId":"608ab876b2a2b737f32693d8",
     "youTracks":[
       {
-        "youTrackDomain":"domain",
-        "youTrackPermToken":"token",
-        "taskKey":"CAYTI"}
+        "youTrackDomain":"https://coursework.myjetbrains.com/youtrack",
+        "youTrackPermToken":"perm:cm9vdA==.NDktMA==.dGM8QEEi9ToWNX7Xta2wSDFdN2xCbE",
+        "taskKey":"CAYTI"
+      }
     ]
   },
   {
@@ -14,7 +15,8 @@
       {
         "youTrackDomain":"domain",
         "youTrackPermToken":"token",
-        "taskKey":"CAYTI"}
+        "taskKey":"CAYTI"
+      }
     ]
   }
 ]

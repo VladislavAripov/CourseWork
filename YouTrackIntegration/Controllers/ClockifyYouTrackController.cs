@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -32,7 +34,7 @@ namespace YouTrackIntegration.Controllers
         
         
         [HttpPost]
-        public string AddSpentTimeToTask(ClockifyApiModel request)
+        public void AddSpentTimeToTask(ClockifyApiModel request)
         {
             var association = _userAssociations.Find(a => a.clockifyId == request.userId);
             if (association != null)
@@ -48,22 +50,54 @@ namespace YouTrackIntegration.Controllers
                     var spentHours = spentTime.Hours;
                     var spentMinutes = spentTime.Minutes;
                     spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
-                
-                    return $"spent hours: {spentHours}; spent minutes: {spentMinutes}";
+
+                    var workItem = new WorkItem
+                    {
+                        text = request.id, duration = new Duration
+                        {
+                            minutes = spentHours * 60 + spentMinutes
+                        }
+                    };
+                    var workItemJson = JsonSerializer.Serialize(workItem);
+
+                    using (var webClient = new WebClient())
+                    {
+                        webClient.Headers.Add("Accept","application/json");
+                        webClient.Headers.Add("Authorization", $"Bearer {youTrack.youTrackPermToken}");
+                        webClient.Headers.Add("Content-Type","application/json");
+                        
+                        var taskId = GetYouTrackTaskId(request.description, youTrack.taskKey);
+                        var url = $"{youTrack.youTrackDomain}/api/issues/{taskId}/timeTracking/workItems";
+                        
+                        var data = Encoding.GetEncoding("utf-8").GetBytes(workItemJson);
+                        
+                        webClient.UploadData(url, data);
+                    }
                 }
             }
-
-            return "Wrong";
         }
 
 
-        private YouTrack FindYouTrack(ClockifyYouTrackAssociation association, string description)
+        private Model.YouTrack FindYouTrack(ClockifyYouTrackAssociation association, string description)
         {
             foreach (var youTrack in association.youTracks)
-                if (youTrack.taskKey == description.Substring(0, youTrack.taskKey.Length))
+                if (youTrack.taskKey + "-" == description.Substring(0, youTrack.taskKey.Length + 1))
                     return youTrack;
 
             return null;
+        }
+
+        private string GetYouTrackTaskId(string description, string taskKey)
+        {
+            var taskNumber = "";
+            for (var i = taskKey.Length + 1; i < description.Length; i++)
+            {
+                if (!Char.IsDigit(description[i]))
+                    break;
+                taskNumber += description[i];
+            }
+
+            return $"{taskKey}-{taskNumber}";
         }
     }
 }
