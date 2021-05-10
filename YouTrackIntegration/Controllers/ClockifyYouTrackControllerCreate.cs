@@ -5,10 +5,7 @@ using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 using YouTrackIntegration.Model;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 
@@ -16,15 +13,15 @@ namespace YouTrackIntegration.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class ClockifyYouTrackController : ControllerBase
+    public class ClockifyYouTrackCreateController : ControllerBase
     {
         private const string JsonPath = "Data/clockifyYouTrackAssociations.json";
         private string _userAssociationsJson = System.IO.File.ReadAllText(JsonPath);
         private readonly List<ClockifyYouTrackAssociation> _userAssociations;
         
-        private readonly ILogger<ClockifyYouTrackController> _logger;
+        private readonly ILogger<ClockifyYouTrackCreateController> _logger;
 
-        public ClockifyYouTrackController(ILogger<ClockifyYouTrackController> logger)
+        public ClockifyYouTrackCreateController(ILogger<ClockifyYouTrackCreateController> logger)
         {
             _userAssociations = JsonSerializer.Deserialize<ClockifyYouTrackAssociation[]>(_userAssociationsJson)
                 ?.ToList();
@@ -51,7 +48,7 @@ namespace YouTrackIntegration.Controllers
                     var spentMinutes = spentTime.Minutes;
                     spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
 
-                    var workItem = new WorkItem
+                    var workItem = new WorkItemPost
                     {
                         text = request.id, duration = new Duration
                         {

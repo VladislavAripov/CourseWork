@@ -1,6 +1,7 @@
 [
   {
     "clockifyId":"608ab876b2a2b737f32693d8",
+    "workspaceId": "608ab876b2a2b737f32693d9",
     "youTracks":[
       {
         "youTrackDomain":"https://coursework.myjetbrains.com/youtrack",
@@ -11,6 +12,7 @@
   },
   {
     "clockifyId":"608ab876b2a2b737f32693d8",
+    "workspaceId": "608ab876b2a2b737f32693d9",
     "youTracks":[
       {
         "youTrackDomain":"domain",

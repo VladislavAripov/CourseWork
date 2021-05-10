@@ -1,6 +1,6 @@
 ﻿namespace YouTrackIntegration.Model
 {
-    public class WorkItem
+    public class WorkItemPost
     {
         public string text { get; set; }
         public Duration duration { get; set; }

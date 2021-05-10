@@ -4,6 +4,8 @@
     {
         public string clockifyId { get; set; }
         
+        public string workspaceId { get; set; }
+        
         public YouTrack[] youTracks { get; set; }
 
         public bool IsValid()
