@@ -14,15 +14,15 @@ namespace YouTrackIntegration.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class ClockifyYouTrackDeleteController : ControllerBase
+    public class ClockifyYouTrackUpdateController : ControllerBase
     {
         private const string JsonPath = "Data/clockifyYouTrackAssociations.json";
         private string _userAssociationsJson = System.IO.File.ReadAllText(JsonPath);
         private readonly List<ClockifyYouTrackAssociation> _userAssociations;
         
-        private readonly ILogger<ClockifyYouTrackDeleteController> _logger;
+        private readonly ILogger<ClockifyYouTrackUpdateController> _logger;
 
-        public ClockifyYouTrackDeleteController(ILogger<ClockifyYouTrackDeleteController> logger)
+        public ClockifyYouTrackUpdateController(ILogger<ClockifyYouTrackUpdateController> logger)
         {
             _userAssociations = JsonSerializer.Deserialize<ClockifyYouTrackAssociation[]>(_userAssociationsJson)
                 ?.ToList();
@@ -32,7 +32,7 @@ namespace YouTrackIntegration.Controllers
         
         
         [HttpPost]
-        public void DeleteTask(ClockifyApiModel request)
+        public void UpdateTask(ClockifyApiModel request)
         {
             var association = _userAssociations.Find(a => a.workspaceId == request.workspaceId);
             if (association != null)
@@ -44,7 +44,7 @@ namespace YouTrackIntegration.Controllers
                     {
                         webClient.Headers.Add("Accept","application/json");
                         webClient.Headers.Add("Authorization", $"Bearer {youTrack.youTrackPermToken}");
-                        
+
                         var taskId = GetYouTrackTaskId(request.description, youTrack.taskKey);
                         var url = $"{youTrack.youTrackDomain}/api/issues/{taskId}/timeTracking/workItems?fields=id,text";
 
@@ -55,7 +55,18 @@ namespace YouTrackIntegration.Controllers
                         var item = workItems?.FirstOrDefault(a => a.text == request.id);
 
                         url = $"{youTrack.youTrackDomain}/api/issues/{taskId}/timeTracking/workItems/{item?.id}";
-                        webClient.UploadString(url, "DELETE", "");
+
+
+                        var workItem = new WorkItemPost()
+                        {
+                            duration = new Duration() {minutes = GetSpentTime(request)},
+                            text = item?.text
+                        };
+                        var workItemJson = JsonSerializer.Serialize(workItem);
+                        var workItemBytes = Encoding.GetEncoding("utf-8").GetBytes(workItemJson);
+                        
+                        webClient.Headers.Add("Content-Type", "application/json");
+                        webClient.UploadData(url, workItemBytes);
                     }
                 }
             }
@@ -89,6 +100,20 @@ namespace YouTrackIntegration.Controllers
         public static string Decrypt(byte[] data)
         {
             return encoding.GetString(data);
+        }
+        
+        private int GetSpentTime(ClockifyApiModel request)
+        {
+            var start = request.timeInterval.start;
+            var end = request.timeInterval.end;
+            
+            var spentTime = end - start;
+            
+            var spentHours = spentTime.Hours;
+            var spentMinutes = spentTime.Minutes;
+            spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
+
+            return spentHours * 60 + spentMinutes;
         }
     }
 }

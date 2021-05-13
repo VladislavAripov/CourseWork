@@ -39,20 +39,11 @@ namespace YouTrackIntegration.Controllers
                 var youTrack = FindYouTrack(association, request.description);
                 if (youTrack != null)
                 {
-                    var start = request.timeInterval.start;
-                    var end = request.timeInterval.end;
-            
-                    var spentTime = end - start;
-            
-                    var spentHours = spentTime.Hours;
-                    var spentMinutes = spentTime.Minutes;
-                    spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
-
                     var workItem = new WorkItemPost
                     {
                         text = request.id, duration = new Duration
                         {
-                            minutes = spentHours * 60 + spentMinutes
+                            minutes = GetSpentTime(request)
                         }
                     };
                     var workItemJson = JsonSerializer.Serialize(workItem);
@@ -95,6 +86,20 @@ namespace YouTrackIntegration.Controllers
             }
 
             return $"{taskKey}-{taskNumber}";
+        }
+
+        private int GetSpentTime(ClockifyApiModel request)
+        {
+            var start = request.timeInterval.start;
+            var end = request.timeInterval.end;
+            
+            var spentTime = end - start;
+            
+            var spentHours = spentTime.Hours;
+            var spentMinutes = spentTime.Minutes;
+            spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
+
+            return spentHours * 60 + spentMinutes;
         }
     }
 }
