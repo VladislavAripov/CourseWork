@@ -2,10 +2,15 @@
 {
     public class YouTrack
     {
-        public string youTrackDomain { get; set; }
+        public string domain { get; set; }
         
-        public string youTrackPermToken { get; set; }
+        public string permToken { get; set; }
         
-        public string taskKey { get; set; }
+        public string defaultIssueId { get; set; }
+
+        public bool IsValid()
+        {
+            return domain != null && permToken != null;
+        }
     }
 }

@@ -2,15 +2,15 @@
 {
     public class ClockifyYouTrackAssociation
     {
-        public string clockifyId { get; set; }
+        public string userId { get; set; }
         
         public string workspaceId { get; set; }
         
-        public YouTrack[] youTracks { get; set; }
+        public YouTrack youTrack { get; set; }
 
         public bool IsValid()
         {
-            return clockifyId != null && youTracks != null;
+            return workspaceId != null && youTrack.IsValid();
         }
     }
 }

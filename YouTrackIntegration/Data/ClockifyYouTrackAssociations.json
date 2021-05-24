@@ -1,0 +1,29 @@
+[
+  {
+    "userId":"1",
+    "workspaceId":"608ab876b2a2b737f32693d9",
+    "youTrack":{
+      "domain": "https://coursework.myjetbrains.com/youtrack",
+      "permToken": "perm:cm9vdA==.NDktMA==.dGM8QEEi9ToWNX7Xta2wSDFdN2xCbE",
+      "defaultIssueId": "CAYTI-20"
+    }
+  },
+  {
+    "userId":"",
+    "workspaceId":"",
+    "youTrack":{
+      "domain": "",
+      "permToken": "",
+      "defaultIssueId": ""
+    }
+  },
+  {
+    "userId":"",
+    "workspaceId":"",
+    "youTrack":{
+      "domain": "",
+      "permToken": "",
+      "defaultIssueId": ""
+    }
+  }
+]
