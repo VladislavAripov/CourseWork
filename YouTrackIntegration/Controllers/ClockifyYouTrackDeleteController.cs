@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -13,58 +14,73 @@ namespace YouTrackIntegration.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class ClockifyYouTrackCreateController : ControllerBase
+    public class ClockifyYouTrackDeleteController : ControllerBase
     {
         private const string JsonPath = "Data/ClockifyYouTrackAssociations.json";
         private string _userAssociationsJson = System.IO.File.ReadAllText(JsonPath);
         private readonly List<ClockifyYouTrackAssociation> _userAssociations;
         
-        private readonly ILogger<ClockifyYouTrackCreateController> _logger;
+        private readonly ILogger<ClockifyYouTrackDeleteController> _logger;
 
-        public ClockifyYouTrackCreateController(ILogger<ClockifyYouTrackCreateController> logger)
+        public ClockifyYouTrackDeleteController(ILogger<ClockifyYouTrackDeleteController> logger)
         {
             _userAssociations = JsonSerializer.Deserialize<ClockifyYouTrackAssociation[]>(_userAssociationsJson)
                 ?.ToList();
             _logger = logger;
         }
-        
 
+        
+        
         [HttpPost]
-        public void AddSpentTimeToTask(ClockifyApiModel request)
+        public void DeleteTask(ClockifyApiModel request)
         {
             var association = _userAssociations.Find(a => a.workspaceId == request.workspaceId);
             if (association != null)
             {
-                var workItemText = $"timestampId:\"{request.id}\"\n";
-                workItemText += $"create:\"{request.user.name}\"\n";
-                workItemText += $"update:\"-\"";
-                
-                var workItem = new WorkItemPost
-                {
-                    text = workItemText, duration = new Duration
-                    {
-                        minutes = GetSpentTime(request)
-                    }
-                };
-                var workItemJson = JsonSerializer.Serialize(workItem);
-
                 using (var webClient = new WebClient())
                 {
                     webClient.Headers.Add("Accept","application/json");
                     webClient.Headers.Add("Authorization", $"Bearer {association.youTrack.permToken}");
-                    webClient.Headers.Add("Content-Type","application/json");
-                        
+                    
                     var issueId = GetYouTrackIssueId(request.description);
-                    var url = $"{association.youTrack.domain}/api/issues/{issueId}/timeTracking/workItems";
-                        
-                    var data = Encoding.GetEncoding("utf-8").GetBytes(workItemJson);
-                        
-                    webClient.UploadData(url, data);
+                    var url = $"{association.youTrack.domain}/api/issues/{issueId}/timeTracking/workItems?fields=id,text";
+
+                    var data = webClient.DownloadData(url);
+
+                    var dataJson = Decrypt(data);
+                    var workItems = JsonSerializer.Deserialize<WorkItemGet[]>(dataJson)?.ToList();
+                    var item = workItems?.FirstOrDefault(a => ReadTimestampId(a.text) == request.id);
+
+                    url = $"{association.youTrack.domain}/api/issues/{issueId}/timeTracking/workItems/{item?.id}";
+                    webClient.UploadString(url, "DELETE", "");
                 }
             }
         }
-        
 
+        
+        private string ReadTimestampId(string workItemText)
+        {
+            if (workItemText == null)
+                return "";
+            
+            var timestampId = "";
+
+            var i = 0;
+            // Надо прочитать id в ковычках - ищем первую ковычку.
+            while (i < workItemText.Length && workItemText[i] != '"')
+                i++;
+            i++;
+            
+            // Читаем текст в ковычках.
+            while (i < workItemText.Length && workItemText[i] != '"')
+            {
+                timestampId += workItemText[i];
+                i++;
+            }
+            
+            return timestampId;
+        }
+        
         private string GetYouTrackIssueId(string description)
         {
             var issueKey = "";
@@ -87,24 +103,17 @@ namespace YouTrackIntegration.Controllers
             
             return $"{issueKey}-{issueNumber}";
         }
-
+        
         private bool IsCorrectSymbol(char c)
         {
             return Char.IsLetter(c) || Char.IsDigit(c) || (c == '_');
         }
 
-        private int GetSpentTime(ClockifyApiModel request)
+        private static readonly Encoding encoding = Encoding.UTF8;
+        
+        public static string Decrypt(byte[] data)
         {
-            var start = request.timeInterval.start;
-            var end = request.timeInterval.end;
-            
-            var spentTime = end - start;
-            
-            var spentHours = spentTime.Hours;
-            var spentMinutes = spentTime.Minutes;
-            spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
-
-            return spentHours * 60 + spentMinutes;
+            return encoding.GetString(data);
         }
     }
 }
