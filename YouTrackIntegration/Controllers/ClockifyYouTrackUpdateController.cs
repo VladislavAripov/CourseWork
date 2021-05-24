@@ -16,7 +16,7 @@ namespace YouTrackIntegration.Controllers
     [Route("[controller]")]
     public class ClockifyYouTrackUpdateController : ControllerBase
     {
-        private const string JsonPath = "Data/clockifyYouTrackAssociations.json";
+        private const string JsonPath = "Data/ClockifyYouTrackAssociations.json";
         private string _userAssociationsJson = System.IO.File.ReadAllText(JsonPath);
         private readonly List<ClockifyYouTrackAssociation> _userAssociations;
         
@@ -37,62 +37,106 @@ namespace YouTrackIntegration.Controllers
             var association = _userAssociations.Find(a => a.workspaceId == request.workspaceId);
             if (association != null)
             {
-                var youTrack = FindYouTrack(association, request.description);
-                if (youTrack != null)
+                using (var webClient = new WebClient())
                 {
-                    using (var webClient = new WebClient())
+                    webClient.Headers.Add("Accept","application/json");
+                    webClient.Headers.Add("Authorization", $"Bearer {association.youTrack.permToken}");
+
+                    var issueId = GetYouTrackIssueId(request.description);
+                    var url = $"{association.youTrack.domain}/api/issues/{issueId}/timeTracking/workItems?fields=id,text";
+
+                    var data = webClient.DownloadData(url);
+
+                    var dataJson = Decrypt(data);
+                    var workItems = JsonSerializer.Deserialize<WorkItemGet[]>(dataJson)?.ToList();
+                    var item = workItems?.FirstOrDefault(a => ReadTimestampId(a.text) == request.id);
+                    // Если отметка времени не была найдена - останавливаем выполнение метода.
+                    if (item == null)
+                        return;
+                    
+                    url = $"{association.youTrack.domain}/api/issues/{issueId}/timeTracking/workItems/{item?.id}";
+
+                    var workItem = new WorkItemPost()
                     {
-                        webClient.Headers.Add("Accept","application/json");
-                        webClient.Headers.Add("Authorization", $"Bearer {youTrack.youTrackPermToken}");
-
-                        var taskId = GetYouTrackTaskId(request.description, youTrack.taskKey);
-                        var url = $"{youTrack.youTrackDomain}/api/issues/{taskId}/timeTracking/workItems?fields=id,text";
-
-                        var data = webClient.DownloadData(url);
-
-                        var dataJson = Decrypt(data);
-                        var workItems = JsonSerializer.Deserialize<WorkItemGet[]>(dataJson)?.ToList();
-                        var item = workItems?.FirstOrDefault(a => a.text == request.id);
-
-                        url = $"{youTrack.youTrackDomain}/api/issues/{taskId}/timeTracking/workItems/{item?.id}";
-
-
-                        var workItem = new WorkItemPost()
-                        {
-                            duration = new Duration() {minutes = GetSpentTime(request)},
-                            text = item?.text
-                        };
-                        var workItemJson = JsonSerializer.Serialize(workItem);
-                        var workItemBytes = Encoding.GetEncoding("utf-8").GetBytes(workItemJson);
-                        
-                        webClient.Headers.Add("Content-Type", "application/json");
-                        webClient.UploadData(url, workItemBytes);
-                    }
+                        duration = new Duration() {minutes = GetSpentTime(request)},
+                        text = ChangeUpdateName(item?.text, request.user.name)
+                    };
+                    var workItemJson = JsonSerializer.Serialize(workItem);
+                    var workItemBytes = Encoding.GetEncoding("utf-8").GetBytes(workItemJson);
+                    
+                    webClient.Headers.Add("Content-Type", "application/json");
+                    webClient.UploadData(url, workItemBytes);
                 }
+            
             }
         }
 
-
-        private Model.YouTrack FindYouTrack(ClockifyYouTrackAssociation association, string description)
+        private string GetYouTrackIssueId(string description)
         {
-            foreach (var youTrack in association.youTracks)
-                if (youTrack.taskKey + "-" == description.Substring(0, youTrack.taskKey.Length + 1))
-                    return youTrack;
+            var issueKey = "";
+            foreach (var c in description)
+            {
+                if (!IsCorrectSymbol(c))
+                    break;
 
-            return null;
-        }
-
-        private string GetYouTrackTaskId(string description, string taskKey)
-        {
-            var taskNumber = "";
-            for (var i = taskKey.Length + 1; i < description.Length; i++)
+                issueKey += c;
+            }
+            
+            var issueNumber = "";
+            for (var i = $"{issueKey}-".Length; i < description.Length; i++)
             {
                 if (!Char.IsDigit(description[i]))
                     break;
-                taskNumber += description[i];
-            }
 
-            return $"{taskKey}-{taskNumber}";
+                issueNumber += description[i];
+            }
+            
+            return $"{issueKey}-{issueNumber}";
+        }
+        
+        private bool IsCorrectSymbol(char c)
+        {
+            return Char.IsLetter(c) || Char.IsDigit(c) || (c == '_');
+        }
+
+        private string ReadTimestampId(string workItemText)
+        {
+            if (workItemText == null)
+                return "";
+            
+            var timestampId = "";
+
+            var i = 0;
+            // Надо прочитать id в ковычках - ищем первую ковычку.
+            while (i < workItemText.Length && workItemText[i] != '"')
+                i++;
+            i++;
+            
+            // Читаем текст в ковычках.
+            while (i < workItemText.Length && workItemText[i] != '"')
+            {
+                timestampId += workItemText[i];
+                i++;
+            }
+            
+            return timestampId;
+        }
+
+        private string ChangeUpdateName(string workItemText, string newUpdateName)
+        {
+            if (workItemText == null)
+                return "";
+            
+            // Знаем, что поле апдейт последнее - ищем вторую
+            // с конца ковычку и удаляем старое значение
+            var i = workItemText.Length - 2;
+            while (i > 0 && workItemText[i] != '"')
+                i--;
+
+            workItemText = workItemText.Remove(i);
+            workItemText += '"' + newUpdateName + '"';
+            
+            return workItemText;
         }
         
         private static readonly Encoding encoding = Encoding.UTF8;
