@@ -10,7 +10,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\YouTrackIntegration.Model\YouTrackIntegration.Model.csproj" />
+      <ProjectReference Include="..\YouTrackIntegration.Clockify\YouTrackIntegration.Clockify.csproj" />
+      <ProjectReference Include="..\YouTrackIntegration.Data\YouTrackIntegration.Data.csproj" />
+      <ProjectReference Include="..\YouTrackIntegration.YouTrack\YouTrackIntegration.YouTrack.csproj" />
     </ItemGroup>
 
 </Project>

@@ -14,13 +14,13 @@
   "hourlyRate": null,   
   "costRate": null,   
   "customFieldValues": [],   
-  "project": null,   
-  "task": null,   
-  "user": {     
+  "project": null,
+  "task": null,
+  "user": {
     "id": "608ab876b2a2b737f32693d8",     
     "name": "Влад Арипов",     
     "status": "ACTIVE"
-  },   
+  },
   "tags": []
 }
 
