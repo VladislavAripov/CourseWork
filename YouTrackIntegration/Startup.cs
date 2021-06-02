@@ -32,7 +32,7 @@ namespace YouTrackIntegration
             {
                 c.SwaggerDoc("v1", new OpenApiInfo {Title = "YouTrackIntegration", Version = "v1"});
             });
-            services.AddSingleton<ConnectionManger>(new ConnectionManger());
+            services.AddSingleton<AssociationsManager>(new AssociationsManager());
             services.AddSingleton<YouTrackService>(new YouTrackService());
         }
 

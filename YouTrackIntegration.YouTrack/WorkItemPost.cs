@@ -14,13 +14,4 @@
         
         public WorkItemAuthor author { get; set; }
     }
-
-    public class Duration
-    {
-        public Duration(int minutes)
-        {
-            this.minutes = minutes;
-        }
-        public int minutes { get; set; }
-    }
 }

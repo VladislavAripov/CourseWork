@@ -2,9 +2,9 @@
 
 namespace YouTrackIntegration.Data
 {
-    public class ClockifyYouTrackConnection
+    public class ClockifyYouTrackAssociation
     {
-        public ClockifyYouTrackConnection(string userId, string workspaceId, string domain, string permToken)
+        public ClockifyYouTrackAssociation(string userId, string workspaceId, string domain, string permToken)
         {
             this.userId = userId;
             this.workspaceId = workspaceId;

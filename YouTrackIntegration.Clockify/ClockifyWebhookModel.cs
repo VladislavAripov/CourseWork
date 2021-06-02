@@ -2,7 +2,7 @@
 
 namespace YouTrackIntegration.Clockify
 {
-    public class ClockifyApiModel
+    public class ClockifyWebhookModel
     {
         public string id { get; set; }
         public string userId { get; set; }
