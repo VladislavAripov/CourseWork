@@ -4,7 +4,7 @@
     {
         public string clockifyUserId { get; set; }
         
-        public string youTrackUserId { get; set; }
+        public string youTrackUserLogin { get; set; }
         
         public string defaultIssueId { get; set; }
     }

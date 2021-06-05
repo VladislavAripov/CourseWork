@@ -19,6 +19,8 @@ namespace YouTrackIntegration.Data
         public string domain { get; set; }
 
         public string permToken { get; set; }
+        
+        public string defaultIssueId { get; set; }
 
         public User[] users { get; set; }
 

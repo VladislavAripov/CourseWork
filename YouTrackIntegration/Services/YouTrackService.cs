@@ -1,137 +1,110 @@
 ﻿using System;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
-using System.Text;
-using System.Text.Json;
 using YouTrackIntegration.Clockify;
-using YouTrackIntegration.YouTrack;
 using YouTrackIntegration.Data;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using YouTrackSharp;
+using YouTrackSharp.TimeTracking;
 
 
 namespace YouTrackIntegration.Services
 {
     public class YouTrackService
     {
-        #region public api
+        #region Public API
 
-        public async void CreateWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
+        public void CreateWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
         {
             // Ищем от какого пользователя идет запрос, некая аутентификация и авторизация.
             var user = association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
             if (user == null)
                 return;
 
-            using var httpClient = new HttpClient();
-            SetHttpClientParams(httpClient, association.permToken);
-            
-            
-            var issueId = GetYouTrackIssueId(clockifyWebhook.description);
-            
-            var defaultIssueWorkItemText = $"{clockifyWebhook.description}\n{clockifyWebhook.id}";
-            
-            var workItemText = (issueId == user.defaultIssueId)
-                ? defaultIssueWorkItemText
-                : clockifyWebhook.id;
+            // Создаем подключение к YouTrack.
+            var connection = new BearerTokenConnection(association.domain, association.permToken);
 
-            var spentTime = GetSpentTime(clockifyWebhook);
-            
-            
-            var workItem = CreateWorkItem(workItemText, spentTime, user.youTrackUserId);
-            
-            var url = $"{association.domain}/api/issues/{issueId}/timeTracking/workItems";
-
-            var response = await httpClient.PostAsync(url, workItem);
-
-            // Если выделенный IssueId оказался неверным, добавляем отметку времени в defaultIssue
-            if (response.StatusCode == HttpStatusCode.NotFound & user.defaultIssueId != default)
-            {
-                workItem = CreateWorkItem(defaultIssueWorkItemText, spentTime, user.youTrackUserId);
-                url = $"{association.domain}/api/issues/{user.defaultIssueId}/timeTracking/workItems";
-
-                await httpClient.PostAsync(url, workItem);
-            }
-        }
-
-        public async void UpdateWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
-        {
-            // Ищем от какого пользователя идет запрос, некая авторизация.
-            var user =  association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
-            if (user == null)
+            // Берем issueId из описания вебхука или берем
+            // запасной issueId (пользовательский или основной).
+            var issueId = GetIssueIdFromDescriptionOrDefaultIssueId(connection, clockifyWebhook, association, user);
+            // Если найти issueId не удалось, завершаем метод -
+            // мы не знаем куда добавлять отметку времени.
+            if (string.IsNullOrEmpty(issueId)) 
                 return;
             
-            using var httpClient = new HttpClient();
-            SetHttpClientParams(httpClient, association.permToken);
+            // Создаем отметку времени, которая будет отправлена в YouTrack.
+            var workItem = CreateWorkItem(clockifyWebhook, user);
 
-            var issueId = GetYouTrackIssueId(clockifyWebhook.description);
-            
-            // Пытаемся найти указанную запись в Issue с выделенным IssueId.
-            var outdatedWorkItem = GetWorkItemFromIssue(association.domain, association.permToken, issueId, 
-                clockifyWebhook.id);
-            // Если запись не была найдена, пытаемся найти такую в default issue.
-            if (outdatedWorkItem.Result == null & user.defaultIssueId != "")
-            {
-                outdatedWorkItem = GetWorkItemFromIssue(association.domain, association.permToken, user.defaultIssueId,
-                    clockifyWebhook.id);
-                // Если и в default issue такой записи нет, то прерываем выполненине метода - обновлять нечего.
-                if (outdatedWorkItem.Result == null)
-                    return;
-                // Если запись была найдена в default issue, меняем текущий issueID на defaultIssueId.
-                issueId = user.defaultIssueId;
-            }
-            
-            var url = $"{association.domain}/api/issues/{issueId}/timeTracking/workItems/{outdatedWorkItem.Result?.id}";
-
-            
-            var spentTime = GetSpentTime(clockifyWebhook);
-            var newWorkItemText = clockifyWebhook.id;
-            
-            var newWorkItem = CreateWorkItem(newWorkItemText, spentTime, user.youTrackUserId);
-            
-            
-            await httpClient.PostAsync(url, newWorkItem);
+            // Отправляем отметку времени в конкретный issue в конкретном YouTrack.
+            CreateWorkItemForIssue(connection, issueId, workItem);
         }
 
-        public async void DeleteWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
+        public void UpdateWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
         {
-            // Ищем пользователя, от которого идет запрос, может понадобится его defaultIssueId.
+            // Ищем от какого пользователя идет запрос, некая аутентификация и авторизация.
             var user = association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
             if (user == null)
                 return;
-           
-            using var httpClient = new HttpClient();
-            SetHttpClientParams(httpClient, association.permToken);
-            
-            var issueId = GetYouTrackIssueId(clockifyWebhook.description);
 
-            // Пытаемся найти указанную запись в Issue с выделенным IssueId.
-            var outdatedWorkItem = GetWorkItemFromIssue(association.domain, association.permToken, issueId, 
-                clockifyWebhook.id);
-            // Если запись не была найдена, пытаемся найти такую в default issue.
-            if (outdatedWorkItem.Result == null & user.defaultIssueId != "")
-            {
-                outdatedWorkItem = GetWorkItemFromIssue(association.domain, association.permToken, user.defaultIssueId,
-                    clockifyWebhook.id);
-                // Если и в default issue такой записи нет, то прерываем выполненине метода - удалять нечего.
-                if (outdatedWorkItem.Result == null)
-                    return;
-                // Если запись была найдена в default issue, меняем текущий issueID на defaultIssueId.
-                issueId = user.defaultIssueId;
-            }
+            // Создаем подключение к YouTrack.
+            var connection = new BearerTokenConnection(association.domain, association.permToken);
             
-            var url = $"{association.domain}/api/issues/{issueId}/timeTracking/workItems/{outdatedWorkItem.Result?.id}";
-                
-            await httpClient.DeleteAsync(url);
+            // Берем issueId из описания вебхука или берем
+            // запасной issueId (пользовательский или основной).
+            var issueId = GetIssueIdFromDescriptionOrDefaultIssueId(connection, clockifyWebhook, association, user);
+            // Если найти issueId не удалось, завершаем метод -
+            // мы не знаем где обновлять отметку времени.
+            if (string.IsNullOrEmpty(issueId))
+                return;
+
+            // Получаем отметку времени из YouTrack и обновляем ее (локально),
+            // если отметки времени нет, завершаем метод - обновлять нечего.
+            var workItem = GetWorkItemFromIssue(connection, issueId, clockifyWebhook);
+            if (workItem == null)
+                return;
+            UpdateWorkItem(workItem, clockifyWebhook);
+            
+            // Отправляем обновленную отметку времени в YouTrack.
+            UpdateWorkItemForIssue(connection, issueId, workItem);
+        }
+        
+        public void DeleteWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
+        {
+            // Ищем от какого пользователя идет запрос, некая аутентификация и авторизация.
+            var user = association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
+            if (user == null)
+                return;
+
+            // Создаем подключение к YouTrack.
+            var connection = new BearerTokenConnection(association.domain, association.permToken);
+
+            // Берем issueId из описания вебхука или берем
+            // запасной issueId (пользовательский или основной).
+            var issueId = GetIssueIdFromDescriptionOrDefaultIssueId(connection, clockifyWebhook, association, user);
+            // Если найти issueId не удалось, завершаем метод -
+            // мы не знаем где удалять отметку времени.
+            if (string.IsNullOrEmpty(issueId))
+                return;
+
+            // Получаем отметку времени из YouTrack, еслии ее нет, завершаем метод - удалять нечего.
+            var workItem = GetWorkItemFromIssue(connection, issueId, clockifyWebhook);
+            if (workItem == null)
+                return;
+            
+            // Удаляем отметку времени в YouTrack.
+            DeleteWorkItemForIssue(connection, issueId, workItem.Id);
         }
 
         public async Task<string> GetYouTrackUsers(string domain, string permToken)
         {
+            // Работает через HttpClient, т.к. YouTrackSharp не предоставляет необходимый сервис.
+            
             using var httpClient = new HttpClient();
-            SetHttpClientParams(httpClient, permToken);
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", permToken);
 
-            var url = $"{domain}/api/users?fields=id,name";
+            var url = $"{domain}/api/users?fields=name,login";
 
             var usersJson = await httpClient.GetStringAsync(url);
                 
@@ -139,11 +112,121 @@ namespace YouTrackIntegration.Services
         }
 
         #endregion
+        
+        
+        
+
+        #region Private methods
+
+        #region Post data to YouTrack
+
+        private void CreateWorkItemForIssue(BearerTokenConnection connection, string issueId, WorkItem workItem)
+        {
+            var timeTrackingService = connection.CreateTimeTrackingService();
+            timeTrackingService.CreateWorkItemForIssue(issueId, workItem);
+        }
+
+        private void UpdateWorkItemForIssue(BearerTokenConnection connection, string issueId, WorkItem workItem)
+        {
+            var timeTrackingService = connection.CreateTimeTrackingService();
+            timeTrackingService.UpdateWorkItemForIssue(issueId, workItem.Id, workItem);
+        }
+
+        private void DeleteWorkItemForIssue(BearerTokenConnection connection, string issueId, string workItemId)
+        {
+            var timeTrackingService = connection.CreateTimeTrackingService();
+            timeTrackingService.DeleteWorkItemForIssue(issueId, workItemId);
+        }
+
+        #endregion
+        
+        
+        
+        #region WorkItem
+
+        private WorkItem CreateWorkItem(ClockifyWebhookModel clockifyWebhook, User user)
+        {
+            // Задаем текущую дату и время.
+            var dateTime = DateTime.Now;
+            var duration = GetDuration(clockifyWebhook.timeInterval);
+            // Описание отметки времени включает в себя описание и id отметки времени в clockify.
+            var description = $"{clockifyWebhook.description}\n{clockifyWebhook.id}";
+            var author = new Author {Login = user.youTrackUserLogin};
+
+            return new WorkItem(dateTime, duration, description, null, author);
+        }
+        
+        private void UpdateWorkItem(WorkItem workItem, ClockifyWebhookModel clockifyWebhook)
+        {
+            // При обновлении отметки времени в clockify
+            // могут меняться и ее описание, и ее продолжительность.
+            // Автор отметки времени не меняется.
+            workItem.Description = $"{clockifyWebhook.description}\n{clockifyWebhook.id}";
+            workItem.Duration = GetDuration(clockifyWebhook.timeInterval);
+        }
+        
+        private TimeSpan GetDuration(TimeInterval timeInterval)
+        {
+            var start = timeInterval.start;
+            var end = timeInterval.end;
+
+            var spentTime = end - start;
+
+            var spentDays = spentTime.Days;
+            var spentHours = spentTime.Hours;
+            var spentMinutes = spentTime.Minutes;
+            spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
+
+            return new TimeSpan(spentDays, spentHours, spentMinutes, 0);
+        }
+        
+        private WorkItem GetWorkItemFromIssue(BearerTokenConnection connection, string issueId,
+            ClockifyWebhookModel clockifyWebhook)
+        {
+            var timeTrackingService = connection.CreateTimeTrackingService();
+            var workItems = timeTrackingService.GetWorkItemsForIssue(issueId).Result.ToList();
+            var workItem = workItems.FirstOrDefault(item => IsTimeStampIdExists(item.Description, clockifyWebhook.id));
+
+            return workItem;
+        }
+        
+        private bool IsTimeStampIdExists(string workItemText, string timestampId)
+        {
+            if (workItemText == null)
+                return false;
+
+            return workItemText.Contains(timestampId);
+        }
+
+        #endregion
 
         
         
+        #region IssueId
 
-        #region private methods
+        private string GetIssueIdFromDescriptionOrDefaultIssueId(BearerTokenConnection connection,
+            ClockifyWebhookModel clockifyWebhook, ClockifyYouTrackAssociation association, User user)
+        {
+            // Выделяем issueId из описания вебхука,
+            // если в переданном нам YouTrack он есть - возвращаем его,
+            // иначе смотрим на defaultIssueId.
+            var issueId = GetYouTrackIssueId(clockifyWebhook.description);
+            if (IsIssueExists(connection, issueId)) return issueId;
+
+            // Смотрим defaultIssueId.
+            if (!string.IsNullOrEmpty(user.defaultIssueId)) return user.defaultIssueId;
+            if (!string.IsNullOrEmpty(association.defaultIssueId)) return association.defaultIssueId;
+
+            // Если ничего не нашли возвращаем null.
+            return null;
+        }
+        
+        private bool IsIssueExists(BearerTokenConnection connection, string issueId)
+        {
+            var issueService = connection.CreateIssuesService();
+
+            return issueService.Exists(issueId).Result;
+        }
 
         private string GetYouTrackIssueId(string description)
         {
@@ -155,11 +238,11 @@ namespace YouTrackIntegration.Services
 
                 issueKey += c;
             }
-            
+
             var issueNumber = "";
             for (var i = $"{issueKey}-".Length; i < description.Length; i++)
             {
-                if (!Char.IsDigit(description[i]))
+                if (!char.IsDigit(description[i]))
                     break;
 
                 issueNumber += description[i];
@@ -175,66 +258,9 @@ namespace YouTrackIntegration.Services
         {
             return Char.IsLetter(c) || Char.IsDigit(c) || (c == '_');
         }
-        
-        private int GetSpentTime(ClockifyWebhookModel webhook)
-        {
-            var start = webhook.timeInterval.start;
-            var end = webhook.timeInterval.end;
-            
-            var spentTime = end - start;
-            
-            var spentHours = spentTime.Hours;
-            var spentMinutes = spentTime.Minutes;
-            spentMinutes += (spentTime.Seconds > 30) ? 1 : 0;
 
-            return spentHours * 60 + spentMinutes;
-        }
+        #endregion
 
-        private async Task<WorkItemGet> GetWorkItemFromIssue(string domain, string permToken, string issueId, string timestampId)
-        {
-            using var httpClient = new HttpClient();
-            SetHttpClientParams(httpClient, permToken);
-            
-            var url = $"{domain}/api/issues/{issueId}/timeTracking/workItems?fields=id,text";
-
-            var response = await httpClient.GetAsync(url);
-
-            // Если запрос был выполнен неуспешно - мы не сможем выделить из него данные.
-            if (response.StatusCode != HttpStatusCode.OK)
-                return null;
-
-            var workItemsStr = response.Content.ReadAsStringAsync();
-            
-            var workItems = JsonSerializer.Deserialize<WorkItemGet[]>(workItemsStr.Result)?.ToList();
-            var workItem = workItems?.FirstOrDefault(item => IsIdExist(item.text, timestampId));
-
-            return workItem;
-        }
-
-        private bool IsIdExist(string workItemText, string timestampId)
-        {
-            if (workItemText == null)
-                return false;
-
-            return workItemText.Contains(timestampId);
-        }
-
-        private StringContent CreateWorkItem(string workItemText, int minutes, string youTrackId)
-        {
-            var workItem = new WorkItemPost(workItemText, minutes, youTrackId);
-            var workItemAsJson = JsonSerializer.Serialize(workItem);
-            var workItemAsStringContent = 
-                new StringContent(workItemAsJson, Encoding.UTF8, "application/json");
-
-            return workItemAsStringContent;
-        }
-
-        private void SetHttpClientParams(HttpClient httpClient, string permToken)
-        {
-            httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", permToken);
-        }
-        
         #endregion
     }
 }
