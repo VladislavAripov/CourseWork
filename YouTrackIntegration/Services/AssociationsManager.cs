@@ -1,47 +1,54 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿using System;
 using System.Linq;
-using System.Text.Json;
 using YouTrackIntegration.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace YouTrackIntegration.Services
 {
     public class AssociationsManager
     {
-        private const string JsonPath = "Data/ClockifyYouTrackAssociations.json";
-        private List<ClockifyYouTrackAssociation> _associations;
+        private MyAppContext _context;
         
-        public AssociationsManager()
+        public AssociationsManager(MyAppContext context)
         {
-            _associations = JsonSerializer.Deserialize<ClockifyYouTrackAssociation[]>(File.ReadAllText(JsonPath))
-                ?.ToList();
+            _context = context;
         }
 
         public ClockifyYouTrackAssociation GetAssociation(string workspaceId)
         {
-            return _associations.FirstOrDefault(association => association.workspaceId == workspaceId);
+            return _context.Associations.FirstOrDefault(association => association.workspaceId == workspaceId);
         }
 
         public bool AddAssociation(string userId, string workspaceId, string domain, string permToken)
         {
-            if (_associations.FirstOrDefault(a => a.workspaceId == workspaceId) != null)
+            if (IsAssociationExists(workspaceId))
                 return false;
-            
+
             var association = new ClockifyYouTrackAssociation(userId, workspaceId, domain, permToken);
-            _associations.Add(association);
-            File.WriteAllText(JsonPath, JsonSerializer.Serialize(_associations));
+            _context.Associations.Add(association);
+            _context.SaveChanges();
             
+            return true;
+        }
+
+        private bool IsAssociationExists(string workspaceId)
+        {
+            var association = _context.Associations.FirstOrDefault(a => a.workspaceId == workspaceId);
+            if (association != null)
+                return false;
+
             return true;
         }
 
         public bool DeleteAssociation(string workspaceId)
         {
-            var isSuccess = _associations.Remove(_associations
-                .FirstOrDefault(association => association.workspaceId == workspaceId));
-            if (isSuccess)
-                File.WriteAllText(JsonPath, JsonSerializer.Serialize(_associations));    
+            var association = _context.Associations.FirstOrDefault(a => a.workspaceId == workspaceId);
+            if (association == null)
+                return false;
+
+            _context.Associations.Remove(association);
             
-            return isSuccess;
+            return true;
         }
     }
 }

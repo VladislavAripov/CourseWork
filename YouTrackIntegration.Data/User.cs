@@ -2,6 +2,8 @@
 {
     public class User
     {
+        public string Id { get; set; }
+        
         public string clockifyUserId { get; set; }
         
         public string youTrackUserLogin { get; set; }
