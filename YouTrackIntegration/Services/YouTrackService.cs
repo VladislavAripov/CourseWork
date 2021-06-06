@@ -13,12 +13,20 @@ namespace YouTrackIntegration.Services
 {
     public class YouTrackService
     {
+        private AssociationsManager _associationsManager;
+
+        public YouTrackService(AssociationsManager associationsManager)
+        {
+            _associationsManager = associationsManager;
+        }
+        
+        
         #region Public API
 
         public void CreateWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
         {
             // Ищем от какого пользователя идет запрос, некая аутентификация и авторизация.
-            var user = association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
+            var user = _associationsManager.GetUserFromAssociation(clockifyWebhook.workspaceId, clockifyWebhook.userId);
             if (user == null)
                 return;
 
@@ -43,7 +51,7 @@ namespace YouTrackIntegration.Services
         public void UpdateWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
         {
             // Ищем от какого пользователя идет запрос, некая аутентификация и авторизация.
-            var user = association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
+            var user = _associationsManager.GetUserFromAssociation(clockifyWebhook.workspaceId, clockifyWebhook.userId);
             if (user == null)
                 return;
 
@@ -72,7 +80,7 @@ namespace YouTrackIntegration.Services
         public void DeleteWorkItemInIssue(ClockifyYouTrackAssociation association, ClockifyWebhookModel clockifyWebhook)
         {
             // Ищем от какого пользователя идет запрос, некая аутентификация и авторизация.
-            var user = association.users.FirstOrDefault(u => u.clockifyUserId == clockifyWebhook.userId);
+            var user = _associationsManager.GetUserFromAssociation(clockifyWebhook.workspaceId, clockifyWebhook.userId);
             if (user == null)
                 return;
 
@@ -112,7 +120,6 @@ namespace YouTrackIntegration.Services
         }
 
         #endregion
-        
         
         
 

@@ -1,13 +1,11 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using YouTrackIntegration.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace YouTrackIntegration.Services
 {
     public class AssociationsManager
     {
-        private MyAppContext _context;
+        private readonly MyAppContext _context;
         
         public AssociationsManager(MyAppContext context)
         {
@@ -18,13 +16,26 @@ namespace YouTrackIntegration.Services
         {
             return _context.Associations.FirstOrDefault(association => association.workspaceId == workspaceId);
         }
+        
+        public User GetUserFromAssociation(string workspaceId, string clockifyUserId)
+        {
+            var associationId = _context.Associations.FirstOrDefault(association => association.workspaceId == workspaceId)?.Id;
+            if (associationId == null)
+                return null;
 
-        public bool AddAssociation(string userId, string workspaceId, string domain, string permToken)
+            var userFromAssociation = _context.Users.FirstOrDefault(user => 
+                user.ClockifyYouTrackAssociationId == associationId && 
+                user.clockifyUserId == clockifyUserId);
+            
+            return userFromAssociation; // User or null.
+        }
+
+        public bool AddAssociation(string workspaceId, string domain, string permToken, string defaultIssueId)
         {
             if (IsAssociationExists(workspaceId))
                 return false;
 
-            var association = new ClockifyYouTrackAssociation(userId, workspaceId, domain, permToken);
+            var association = new ClockifyYouTrackAssociation(workspaceId, domain, permToken, defaultIssueId);
             _context.Associations.Add(association);
             _context.SaveChanges();
             

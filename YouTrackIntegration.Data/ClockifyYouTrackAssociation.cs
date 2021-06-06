@@ -1,20 +1,8 @@
-﻿using System;
-
-namespace YouTrackIntegration.Data
+﻿namespace YouTrackIntegration.Data
 {
     public class ClockifyYouTrackAssociation
     {
-        public ClockifyYouTrackAssociation(string userId, string workspaceId, string domain, string permToken)
-        {
-            this.userId = userId;
-            this.workspaceId = workspaceId;
-            this.domain = domain;
-            this.permToken = permToken;
-        }
-
-        public string Id { get; set; }
-        
-        public string userId { get; set; }
+        public int Id { get; set; }
 
         public string workspaceId { get; set; }
 
@@ -24,12 +12,17 @@ namespace YouTrackIntegration.Data
         
         public string defaultIssueId { get; set; }
 
-        public User[] users { get; set; }
 
-
-        public bool IsValid()
+        public ClockifyYouTrackAssociation(string workspaceId, string domain, string permToken, string defaultIssueId)
         {
-            return users != null;
+            this.workspaceId = workspaceId;
+            this.domain = domain;
+            this.permToken = permToken;
+            this.defaultIssueId = defaultIssueId;
+        }
+
+        public ClockifyYouTrackAssociation()
+        {
         }
     }
 }

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace YouTrackIntegration.Clockify
+﻿namespace YouTrackIntegration.Clockify
 {
     public class ClockifyWebhookModel
     {
